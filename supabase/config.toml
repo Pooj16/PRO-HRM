@@ -1,0 +1,22 @@
+project_id = "ylksmknsifpgkscsagui"
+
+[functions.webhook-career-candidate]
+verify_jwt = false
+
+[functions.extract-resume-text-openai]
+verify_jwt = false
+
+[functions.manual-extract-text]
+verify_jwt = false
+
+[functions.batch-extract-resumes]
+verify_jwt = false
+
+[functions.route-candidate]
+verify_jwt = false
+
+[functions.send-assessment-email]
+verify_jwt = false
+
+[functions.submit-assessment]
+verify_jwt = false

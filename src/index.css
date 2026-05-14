@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design System ──────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    /* Rich indigo brand instead of near-black */
+    --background: 210 20% 98%;
+    --foreground: 222 30% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 30% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 30% 12%;
+
+    /* Warm indigo primary */
+    --primary: 173 80% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 96%;
+    --secondary-foreground: 222 30% 20%;
+
+    --muted: 220 18% 95%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 173 30% 98%;
+    --accent-foreground: 237 60% 35%;
+
+    --destructive: 0 80% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 173 80% 30%;
+
+    /* Slightly more rounded — less template-feeling */
+    --radius: 0.625rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 20% 30%;
+    --sidebar-primary: 173 80% 30%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 173 30% 98%;
+    --sidebar-accent-foreground: 237 60% 35%;
+    --sidebar-border: 220 15% 92%;
+    --sidebar-ring: 173 80% 30%;
+  }
+
+  .dark {
+    --background: 222 30% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 28% 10%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 28% 10%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 237 70% 68%;
+    --primary-foreground: 222 30% 8%;
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 210 40% 92%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 215 15% 60%;
+    --accent: 237 40% 20%;
+    --accent-foreground: 237 70% 80%;
+    --destructive: 0 62% 38%;
+    --destructive-foreground: 210 40% 96%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 237 70% 68%;
+    --sidebar-background: 222 28% 8%;
+    --sidebar-foreground: 210 30% 88%;
+    --sidebar-primary: 237 70% 68%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 237 30% 18%;
+    --sidebar-accent-foreground: 237 70% 80%;
+    --sidebar-border: 220 20% 16%;
+    --sidebar-ring: 237 70% 68%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: hsl(240 5.9% 10% / 0.15);
+    color: hsl(240 5.9% 10%);
+  }
+}
+
+/* ─── Custom Utilities ───────────────────────────────────────── */
+
+@layer utilities {
+  /* Card lift on hover */
+  .hover-lift {
+    @apply transition-all duration-200 ease-out;
+  }
+  .hover-lift:hover {
+    @apply -translate-y-1 shadow-lg;
+  }
+
+  /* Table row highlight */
+  .row-hover {
+    @apply transition-colors duration-100;
+  }
+  .row-hover:hover {
+    background-color: hsl(173 30% 98%);
+  }
+}
+
+/* ─── Keyframe Animations ────────────────────────────────────── */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out both;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center;  }
+}
