@@ -48,20 +48,12 @@ export const AssessmentLanding = () => {
 
         setSession(data.session);
 
-        // Fetch assessment details
-        const { data: assessmentData, error: assessmentError } = await supabase
-          .from('assessments')
-          .select('id, title, description, duration, questions')
-          .eq('id', data.session.assessment_id)
-          .single();
-
-        if (assessmentError) {
+        if (!data.assessment) {
           setError('Failed to load assessment details');
           setLoading(false);
           return;
         }
-
-        setAssessment(assessmentData);
+        setAssessment(data.assessment);
         setLoading(false);
       } catch (err: any) {
         setError(String(err));

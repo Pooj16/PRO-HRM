@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sha256 } from '../shared/tenantUtils.ts';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -14,7 +15,7 @@ serve(async (req) => {
     }
 
     try {
-        const { resumeUrl, candidateId } = await req.json();
+        const { resumeUrl, candidateId, processingToken } = await req.json();
 
         if (!resumeUrl) {
             throw new Error('resumeUrl is required');
@@ -29,6 +30,19 @@ serve(async (req) => {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseKey);
+
+        // A public Careers applicant may process only the resume they just submitted.
+        // HR-initiated reprocessing must use the authenticated/manual endpoint instead.
+        const { data: candidateAccess, error: candidateAccessError } = await supabase
+            .from('candidates')
+            .select('resume_url')
+            .eq('id', candidateId)
+            .maybeSingle();
+        const { data: capability } = await supabase.from('resume_processing_capabilities')
+            .select('id').eq('candidate_id', candidateId).eq('token_hash', await sha256(processingToken || '')).is('consumed_at', null).gt('expires_at', new Date().toISOString()).maybeSingle();
+        if (candidateAccessError || !candidateAccess || !capability || candidateAccess.resume_url !== resumeUrl) {
+            return new Response(JSON.stringify({ success: false, error: 'Unauthorized resume processing request' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
 
         // ── Step 1: Get a signed URL or public URL for the file ──────────────────────
         let fileUrl: string;
@@ -167,6 +181,7 @@ serve(async (req) => {
             console.error('❌ Failed to save resume_text:', updateError);
             throw new Error(`Failed to save extracted text: ${updateError.message}`);
         }
+        await supabase.from('resume_processing_capabilities').update({ consumed_at: new Date().toISOString() }).eq('id', capability.id);
 
         console.log(`🎉 resume_text saved for candidate ${candidateId}`);
 

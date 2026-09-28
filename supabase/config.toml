@@ -3,6 +3,12 @@ project_id = "ylksmknsifpgkscsagui"
 [functions.webhook-career-candidate]
 verify_jwt = false
 
+[functions.career-application]
+verify_jwt = false
+
+[functions.bgv-portal]
+verify_jwt = false
+
 [functions.extract-resume-text-openai]
 verify_jwt = false
 

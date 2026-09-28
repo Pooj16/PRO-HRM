@@ -10,6 +10,8 @@ import AssessmentPortalRouter from "./components/assessment-portal/AssessmentPor
 import CareersPage from "./pages/CareersPage";
 import CandidateBGVUpload from "./pages/CandidateBGVUpload";
 import ReferenceVerification from "./pages/ReferenceVerification";
+import Auth from "./pages/Auth";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -24,7 +26,8 @@ const App = () => (
           <Route path="/careers" element={<CareersPage />} />
           <Route path="/bgv-upload/:token" element={<CandidateBGVUpload />} />
           <Route path="/bgv-verify/:token" element={<ReferenceVerification />} />
-          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

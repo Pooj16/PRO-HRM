@@ -55,7 +55,16 @@ serve(async (req: Request) => {
       session.status = 'in_progress';
     }
 
-    return new Response(JSON.stringify({ valid: true, session }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const { data: assessment, error: assessmentError } = await supabase
+      .from('assessments')
+      .select('id, title, description, duration, questions')
+      .eq('id', session.assessment_id)
+      .maybeSingle();
+    if (assessmentError || !assessment) return new Response(JSON.stringify({ valid: false, error: 'assessment unavailable' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    // Do not disclose raw capability tokens, candidate IDs, or organization IDs to the browser.
+    const safeSession = { id: session.id, assessment_id: session.assessment_id, status: session.status, started_at: session.started_at, token_expires_at: expiresAt };
+    return new Response(JSON.stringify({ valid: true, session: safeSession, assessment }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (err: any) {
     console.error('validate-assessment-token error:', err);

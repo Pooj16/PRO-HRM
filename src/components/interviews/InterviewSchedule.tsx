@@ -129,7 +129,7 @@ const InterviewSchedule = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Availability Settings */}
         <div className="space-y-6 lg:col-span-1">
-          <Card className="shadow-sm border-border/60 hover-lift transition-all duration-200" className="bg-slate-50 border-slate-200">
+            <Card className="shadow-sm border-border/60 hover-lift transition-all duration-200 bg-slate-50 border-slate-200">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2 text-slate-900 font-semibold">
                 <Clock className="h-5 w-5" />
@@ -201,7 +201,7 @@ const InterviewSchedule = () => {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm border-border/60 hover-lift transition-all duration-200" className="border-slate-200">
+            <Card className="shadow-sm border-border/60 hover-lift transition-all duration-200 border-slate-200">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Today's Summary</CardTitle>
             </CardHeader>
@@ -238,7 +238,7 @@ const InterviewSchedule = () => {
 
         {/* Right Column: Calendar and Slots */}
         <div className="space-y-6 lg:col-span-2">
-          <Card className="shadow-sm border-border/60 hover-lift transition-all duration-200" className="overflow-hidden border-slate-200">
+            <Card className="shadow-sm border-border/60 hover-lift transition-all duration-200 overflow-hidden border-slate-200">
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="p-4 border-r bg-slate-50/50">
                 <CalendarIcon className="h-4 w-4 mb-2 text-slate-900" />
