@@ -15,6 +15,11 @@ serve(async (req) => {
   }
 
   try {
+    const authorization = req.headers.get('Authorization');
+    if (!authorization) throw new Error('Authentication is required');
+    const userClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authorization } } });
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     const gmailUser = Deno.env.get('GMAIL_USER');
     const gmailAppPassword = Deno.env.get('GMAIL_APP_PASSWORD');
     let useSMTP = false;
@@ -38,7 +43,12 @@ serve(async (req) => {
 
     if (candidateError || !candidate) throw new Error('Candidate not found')
 
-    // Get contacts
+    const { data: membership } = await supabaseClient.from('organization_memberships')
+      .select('role').eq('organization_id', candidate.organization_id).eq('user_id', user.id).in('role', ['admin', 'hr']).maybeSingle();
+    if (!membership) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    // Get contacts and role-bound capability links. This authenticated HR action is
+    // the only email dispatch boundary; public BGV tokens cannot invoke it.
     const { data: contacts, error: contactsError } = await supabaseClient
       .from('bgv_verification_contacts')
       .select('*')
@@ -47,8 +57,15 @@ serve(async (req) => {
 
     if (contactsError || !contacts) throw new Error('Verification contacts not found')
 
+    const { data: referenceTokens, error: tokenError } = await supabaseClient
+      .from('bgv_reference_tokens').select('recipient_role, token').eq('contact_id', contacts.id).is('consumed_at', null).gt('expires_at', new Date().toISOString());
+    if (tokenError || !referenceTokens?.length) throw new Error('No active reference verification links found');
     let emailSent = false;
-    const emailsToNotify = [contacts.manager_email, contacts.university_email, contacts.reference_email].filter(Boolean);
+    const emailsToNotify = referenceTokens.map((item) => ({
+      role: item.recipient_role,
+      token: item.token,
+      email: item.recipient_role === 'Manager' ? contacts.manager_email : item.recipient_role === 'University Records' ? contacts.university_email : item.recipient_role === 'Human Resources' ? contacts.hr_email : contacts.reference_email,
+    })).filter((item) => item.email);
 
     if (useSMTP && emailsToNotify.length > 0) {
       const transporter = nodemailer.createTransport({
@@ -60,17 +77,13 @@ serve(async (req) => {
       });
 
       const portalUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:8080';
-      const verifyLink = `${portalUrl}/bgv-verify/${contacts.verification_token}`;
-
-      for (const email of emailsToNotify) {
-        let recipientRole = 'Contact';
-        if (email === contacts.manager_email) recipientRole = 'Manager';
-        if (email === contacts.university_email) recipientRole = 'University Records';
-        if (email === contacts.hr_email) recipientRole = 'Human Resources';
+      for (const recipient of emailsToNotify) {
+        const recipientRole = recipient.role;
+        const verifyLink = `${portalUrl}/bgv-verify/${recipient.token}?role=${encodeURIComponent(recipientRole)}`;
 
         const mailOptions = {
           from: `HireSpark HR <${gmailUser}>`,
-          to: email,
+          to: recipient.email,
           subject: `Action Required: Background Verification for ${candidate.name}`,
           html: `
               <h2>Background Verification Request</h2>
@@ -83,7 +96,7 @@ serve(async (req) => {
               <br>
               <p>Please click the button below to review these details and securely submit your verification response:</p>
               <p>
-                <a href="${verifyLink}?role=${encodeURIComponent(recipientRole)}" style="display:inline-block;padding:12px 24px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">Verify Candidate Details</a>
+                <a href="${verifyLink}" style="display:inline-block;padding:12px 24px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">Verify Candidate Details</a>
               </p>
               <br>
               <p>Thank you for your time,<br>HireSpark HR Team</p>
@@ -92,7 +105,7 @@ serve(async (req) => {
 
         try {
           await transporter.sendMail(mailOptions);
-          console.log(`Email dispatched successfully to ${email}`);
+          console.log(`Email dispatched successfully to ${recipient.email}`);
           emailSent = true;
         } catch (err) {
           console.error(`SMTP Error for ${email}: ${err.message}`);

@@ -15,6 +15,11 @@ serve(async (req) => {
   }
 
   try {
+    const authorization = req.headers.get('Authorization');
+    if (!authorization) throw new Error('Authentication is required');
+    const userClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authorization } } });
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     const gmailUser = Deno.env.get('GMAIL_USER');
     const gmailAppPassword = Deno.env.get('GMAIL_APP_PASSWORD');
     let useSMTP = false;
@@ -37,6 +42,10 @@ serve(async (req) => {
       .single()
 
     if (candidateError || !candidate) throw new Error('Candidate not found')
+
+    const { data: membership } = await supabaseClient.from('organization_memberships')
+      .select('role').eq('organization_id', candidate.organization_id).eq('user_id', user.id).in('role', ['admin', 'hr']).maybeSingle();
+    if (!membership) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     // Generate token
     const rawToken = crypto.randomUUID();

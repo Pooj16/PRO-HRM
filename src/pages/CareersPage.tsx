@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { CareersForm } from '@/components/CareersForm';
 import { Briefcase, Users, Zap, Code, Globe, Award, ChevronDown } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useParams } from 'react-router-dom';
 
 const CareersPage = () => {
-  const positions = [
-    { title: 'Frontend Engineer', icon: Code, count: 3 },
-    { title: 'Backend Engineer', icon: Code, count: 2 },
-    { title: 'Full Stack Engineer', icon: Code, count: 2 },
-    { title: 'Product Manager', icon: Briefcase, count: 1 },
-    { title: 'UX Designer', icon: Zap, count: 2 },
-    { title: 'Data Scientist', icon: Zap, count: 1 },
-  ];
+  const { siteSlug = 'careers' } = useParams<{ siteSlug?: string }>();
+  const [positions, setPositions] = useState<Array<{ id: string; title: string; openings: number; location: string | null; employment_type: string | null }>>([]);
+  useEffect(() => {
+    supabase.functions.invoke('career-application', { body: { action: 'list_jobs', siteSlug } })
+      .then(({ data, error }) => {
+        if (error) console.error('Could not load open positions:', error);
+        else setPositions(data?.jobs ?? []);
+      });
+  }, [siteSlug]);
 
   const benefits = [
     { icon: Award, title: 'Competitive Salary', description: 'Compensation that actually keeps up with the market — plus equity.' },
@@ -110,24 +113,22 @@ const CareersPage = () => {
           <h2 className="text-3xl font-bold text-gray-900 mb-3 text-center">Open right now</h2>
           <p className="text-center text-gray-500 mb-12">These are live — apply and you'll hear from us within 48 hours.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {positions.map((pos, idx) => {
-              const Icon = pos.icon;
+            {positions.map((pos) => {
+              const Icon = pos.title.toLowerCase().includes('engineer') ? Code : pos.title.toLowerCase().includes('design') ? Zap : Briefcase;
               return (
                 <div
-                  key={idx}
-                  className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:-translate-y-0.5 hover:shadow-md transition-all duration-150 cursor-pointer"
+                  key={pos.id}
+                  className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200"
                 >
                   <div className="p-2.5 bg-slate-100 rounded-lg">
                     <Icon className="h-5 w-5 text-slate-900 flex-shrink-0" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900">{pos.title}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {pos.count === 1 ? '1 spot open' : `${pos.count} open right now`}
-                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{[pos.location, pos.employment_type].filter(Boolean).join(' · ')}</p>
                   </div>
                   <span className="text-sm font-bold text-teal-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                    {pos.count}
+                    {pos.openings}
                   </span>
                 </div>
               );
@@ -141,7 +142,7 @@ const CareersPage = () => {
           <p className="text-gray-500 mb-8 leading-relaxed">
             Drop your details below — we read every application and reply within 2 business days.
           </p>
-          <CareersForm />
+          <CareersForm siteSlug={siteSlug} />
         </section>
 
         {/* FAQ */}

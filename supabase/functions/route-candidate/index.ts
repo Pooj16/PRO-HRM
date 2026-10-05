@@ -148,6 +148,7 @@ serve(async (req) => {
     await supabaseClient
       .from('audit_logs')
       .insert({
+        organization_id: candidate.organization_id,
         entity_type: 'candidate',
         entity_id: candidate.id,
         action: 'ai_screening',
@@ -244,6 +245,7 @@ serve(async (req) => {
       const { error: assignmentError } = await supabaseClient
         .from('candidate_assignments')
         .upsert({
+          organization_id: candidate.organization_id,
           candidate_id: candidate.id,
           team_lead_id: roleThreshold.team_leads.id,
           status: recommendation === 'auto_assessment' ? 'assessment_in_progress' : 'pending_review',

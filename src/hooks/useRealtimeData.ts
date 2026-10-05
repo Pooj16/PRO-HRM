@@ -19,6 +19,7 @@ const mapDatabaseToCandidates = (data: any[]): Candidate[] => {
 
 export interface Candidate {
   id: string;
+  job_id?: string | null;
   name: string;
   email: string;
   phone?: string;

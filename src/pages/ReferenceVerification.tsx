@@ -23,28 +23,9 @@ const ReferenceVerification = () => {
             try {
                 if (!token) throw new Error("Invalid verification token");
 
-                // We use an RPC call or edge function to verify token if RLS blocks read,
-                // but since this is a public endpoint, we query `bgv_verification_contacts` and join references
-                const { data, error } = await supabase
-                    .from('bgv_verification_contacts')
-                    .select('*, candidate:candidates(id, name, applied_role, education_details, last_employer_details)')
-                    .eq('verification_token', token)
-                    .maybeSingle();
-
-                if (error) throw error;
-                if (!data || !data.candidate) {
+                const { data, error } = await supabase.functions.invoke('bgv-portal', { body: { action: 'reference_start', token, role: roleStr } });
+                if (error || !data?.candidate) {
                     setError("Verification link is invalid or has expired.");
-                    return;
-                }
-
-                // Check if already verified based on role
-                let alreadyVerified = false;
-                if (roleStr === 'Manager' && data.manager_status !== 'Pending') alreadyVerified = true;
-                if (roleStr === 'University Records' && data.university_status !== 'Pending') alreadyVerified = true;
-                if (roleStr === 'Human Resources' && data.hr_status !== 'Pending') alreadyVerified = true;
-
-                if (alreadyVerified) {
-                    setError("This verification request has already been completed. Thank you!");
                     return;
                 }
 
@@ -62,44 +43,8 @@ const ReferenceVerification = () => {
     const handleVerify = async (status: 'Verified' | 'Flagged') => {
         setSubmitting(true);
         try {
-            // Determine which column to update based on role
-            let columnToUpdate = 'reference_status';
-            if (roleStr === 'Manager') columnToUpdate = 'manager_status';
-            if (roleStr === 'University Records') columnToUpdate = 'university_status';
-            if (roleStr === 'Human Resources') columnToUpdate = 'hr_status';
-
-            const { error: updateError } = await supabase
-                .from('bgv_verification_contacts')
-                .update({ [columnToUpdate]: status })
-                .eq('verification_token', token);
-
-            if (updateError) throw updateError;
-
-            // Check if all required references are verified to auto-update candidate
-            const { data: contact } = await supabase
-                .from('bgv_verification_contacts')
-                .select('*')
-                .eq('verification_token', token)
-                .single();
-
-            if (contact) {
-                const statuses = [contact.manager_status, contact.university_status, contact.hr_status].filter(s => s !== 'Pending');
-
-                // If at least one verified and no flags, we can potentially mark the candidate BGV as verified,
-                // but usually we let HR do the final approval based on these statuses.
-                // For automation, if manager and university are verified, we update candidate:
-                if (contact.manager_status === 'Verified' || contact.university_status === 'Verified') {
-                    await supabase
-                        .from('candidates')
-                        .update({ bgv_status: 'Verified' })
-                        .eq('id', candidate.id);
-                } else if (status === 'Flagged') {
-                    await supabase
-                        .from('candidates')
-                        .update({ bgv_status: 'Issue Flagged' })
-                        .eq('id', candidate.id);
-                }
-            }
+            const { data, error } = await supabase.functions.invoke('bgv-portal', { body: { action: 'reference_submit', token, role: roleStr, status } });
+            if (error || !data?.success) throw new Error(data?.error || error?.message || 'Failed to submit verification');
 
             setSuccess(true);
         } catch (err: any) {

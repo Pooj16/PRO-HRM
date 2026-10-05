@@ -37,7 +37,7 @@ serve(async (req) => {
     // Get candidate details
     const { data: candidate, error: candidateError } = await supabaseClient
       .from('candidates')
-      .select('*')
+      .select('*, organization_id')
       .eq('id', candidate_id)
       .single()
 
@@ -49,13 +49,14 @@ serve(async (req) => {
     // Get assessment details
     const { data: assessment, error: assessmentError } = await supabaseClient
       .from('assessments')
-      .select('*')
+      .select('*, organization_id')
       .eq('id', assessment_id)
       .single()
 
     if (assessmentError || !assessment) {
       throw new Error('Assessment not found')
     }
+    if (candidate.organization_id !== assessment.organization_id) throw new Error('Candidate and assessment belong to different organizations');
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -95,6 +96,7 @@ serve(async (req) => {
     const { data: session, error: sessionError } = await supabaseClient
       .from('assessment_sessions')
       .upsert({
+        organization_id: candidate.organization_id,
         candidate_id: candidate_id,
         assessment_id: assessment_id,
         token: rawToken,
@@ -140,6 +142,7 @@ serve(async (req) => {
       const { data, error } = await supabaseClient
         .from('assessment_assignments')
         .insert({
+          organization_id: candidate.organization_id,
           candidate_id: candidate_id,
           assessment_id: assessment_id,
           status: 'assigned',
@@ -264,6 +267,7 @@ serve(async (req) => {
     await supabaseClient
       .from('audit_logs')
       .insert({
+        organization_id: candidate.organization_id,
         entity_type: 'candidate',
         entity_id: candidate_id,
         action: 'assessment_email_sent',

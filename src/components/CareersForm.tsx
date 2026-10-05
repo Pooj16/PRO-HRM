@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, CheckCircle } from 'lucide-react';
 
-export const CareersForm = () => {
+export const CareersForm = ({ siteSlug = 'careers' }: { siteSlug?: string }) => {
+  const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
@@ -16,6 +17,14 @@ export const CareersForm = () => {
   });
   const [resume, setResume] = useState<File | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    supabase.functions.invoke('career-application', { body: { action: 'list_jobs', siteSlug } })
+      .then(({ data, error }) => {
+        if (error) console.error('Could not load open positions:', error);
+        else setJobs(data?.jobs ?? []);
+      });
+  }, [siteSlug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +40,7 @@ export const CareersForm = () => {
         throw new Error('Please upload your resume (PDF, DOC, or DOCX)');
       }
 
-      let resume_url = null;
+      let resume_url: string | null = null;
 
       // Upload resume if provided
       if (resume) {
@@ -41,8 +50,13 @@ export const CareersForm = () => {
             throw new Error('Resume file must be less than 10MB');
           }
 
-          const timestamp = Date.now();
-          const filePath = `${timestamp}_${resume.name}`;
+          const { data: uploadRequest, error: uploadRequestError } = await supabase.functions.invoke('career-application', {
+            body: { action: 'create_upload', siteSlug, fileName: resume.name, contentType: resume.type, fileSize: resume.size }
+          });
+          if (uploadRequestError || !uploadRequest?.path || !uploadRequest?.token) {
+            throw new Error(uploadRequest?.error || uploadRequestError?.message || 'Could not prepare secure resume upload');
+          }
+          const filePath = uploadRequest.path;
 
           // 🔍 COMPREHENSIVE LOGGING FOR DEBUGGING
           console.log('═════════════════════════════════════════');
@@ -59,10 +73,7 @@ export const CareersForm = () => {
 
           const { data, error: uploadError } = await supabase.storage
             .from('resumes')
-            .upload(filePath, resume, {
-              contentType: resume.type,
-              upsert: false
-            });
+            .uploadToSignedUrl(filePath, uploadRequest.token, resume, { contentType: resume.type });
 
           console.log('📨 UPLOAD RESPONSE:');
           console.log('Data:', data);
@@ -86,51 +97,14 @@ export const CareersForm = () => {
           console.error('Error message:', uploadErr.message);
           console.error('Error stack:', uploadErr.stack);
           console.error('Full error:', JSON.stringify(uploadErr, null, 2));
-          // Continue without resume - don't block candidate submission
+          throw uploadErr;
         }
       }
 
-      // Check for duplicate email
-      const { data: existingCandidate } = await supabase
-        .from('candidates')
-        .select('id')
-        .eq('email', formData.email.toLowerCase().trim())
-        .maybeSingle();
-
-      if (existingCandidate) {
-        throw new Error('An application with this email already exists');
-      }
-
-      // Insert candidate
-      // Use 'any' cast to bypass schema cache issues
-      const candidateData: any = {
-        name: formData.name.trim(),
-        email: formData.email.toLowerCase().trim(),
-        phone: formData.phone.trim() || null,
-        applied_role: formData.position,
-        resume_url,
-        resume_text: null,
-        status: resume_url ? 'uploaded' : 'text_extracted',
-        assessment_status: 'pending',
-        experience: 'Not Specified',
-        location: 'Not Specified',
-        skills: [],
-        ats_score: 0,
-        match_percentage: 0,
-        is_deleted: false,
-        applied_date: new Date().toISOString(),
-      };
-
-      console.log('👤 Inserting candidate:', candidateData);
-
-      const { error: insertError } = (await supabase
-        .from('candidates')
-        .insert([candidateData])) as any;
-
-      if (insertError) {
-        console.error('❌ Insert error:', insertError.message);
-        throw insertError;
-      }
+      const { data: application, error: submitError } = await supabase.functions.invoke('career-application', {
+        body: { action: 'submit', siteSlug, ...formData, jobId: formData.position, position: jobs.find((job) => job.id === formData.position)?.title || formData.position, resumePath: resume_url }
+      });
+      if (submitError || !application?.candidateId) throw new Error(application?.error || submitError?.message || 'Could not submit application');
 
       console.log('✅ Candidate inserted successfully');
 
@@ -138,26 +112,12 @@ export const CareersForm = () => {
       if (resume_url) {
         console.log('📄 Triggering text extraction loop...');
 
-        // We get the inserted candidate data back since we didn't use .select()
-        // wait, we didn't use select(). We need to get the id.
-        const { data: newCandidate } = await supabase
-          .from('candidates')
-          .select('id')
-          .eq('email', candidateData.email)
-          .single();
-
-        if (newCandidate) {
-          // Calling the Edge Function asynchronously so we don't block the UI
-          supabase.functions.invoke('extract-resume-text', {
-            body: {
-              resumeUrl: resume_url,
-              candidateId: newCandidate.id
-            }
-          }).then(({ error }) => {
+        supabase.functions.invoke('extract-resume-text', {
+          body: { resumeUrl: resume_url, candidateId: application.candidateId, processingToken: application.processingToken }
+        }).then(({ error }) => {
             if (error) console.error('Background extraction error:', error);
-            else console.log('Background extraction completed for', newCandidate.id);
+            else console.log('Background extraction completed for', application.candidateId);
           });
-        }
       }
 
       // Success!
@@ -264,17 +224,8 @@ export const CareersForm = () => {
           onChange={(e) => setFormData({ ...formData, position: e.target.value })}
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
         >
-          <option value="">-- Select a Position --</option>
-          <option value="Frontend Engineer">Frontend Engineer</option>
-          <option value="Backend Engineer">Backend Engineer</option>
-          <option value="Full Stack Engineer">Full Stack Engineer</option>
-          <option value="Product Manager">Product Manager</option>
-          <option value="UX Designer">UX Designer</option>
-          <option value="Data Scientist">Data Scientist</option>
-          <option value="DevOps Engineer">DevOps Engineer</option>
-          <option value="QA Engineer">QA Engineer</option>
-          <option value="HR Manager">HR Manager</option>
-          <option value="Sales Representative">Sales Representative</option>
+          <option value="">-- Select an Open Position --</option>
+          {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
         </select>
       </div>
 

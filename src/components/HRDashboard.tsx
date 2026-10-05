@@ -19,7 +19,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  Briefcase
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,12 +33,14 @@ import EnhancedATSFiltering from './filtering/EnhancedATSFiltering';
 import HRSettings from './settings/HRSettings';
 import { RoleGroupedCandidates } from './candidates/RoleGroupedCandidates';
 import { cn } from '@/lib/utils';
+import JobsManagement from './jobs/JobsManagement';
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'role-groups', label: 'Role Groups', icon: FolderKanban },
   { id: 'ats-filtering', label: 'Enhanced ATS', icon: Filter },
   { id: 'candidates', label: 'Candidates', icon: Users },
+  { id: 'jobs', label: 'Jobs', icon: Briefcase },
   { id: 'assessments', label: 'Assessments', icon: ClipboardList },
   { id: 'interviews', label: 'Interviews', icon: Calendar },
   { id: 'background-verification', label: 'Background', icon: ShieldCheck },
@@ -110,6 +113,8 @@ const HRDashboard = () => {
         return <EnhancedATSFiltering />;
       case 'candidates':
         return <CandidatesList />;
+      case 'jobs':
+        return <JobsManagement />;
       case 'assessments':
         return <AssessmentsList />;
       case 'interviews':

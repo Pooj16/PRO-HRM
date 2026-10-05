@@ -20,6 +20,9 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch responses and related question metadata
+    const { data: sessionContext, error: sessionContextError } = await supabase
+      .from('assessment_sessions').select('candidate_id, assessment_id, organization_id').eq('id', session_id).single();
+    if (sessionContextError || !sessionContext?.organization_id) throw new Error('Assessment session organization not found');
     const { data: responses, error: responsesError } = await supabase
       .from('candidate_responses')
       .select('*, assessment_questions(question_text, question_type, options, correct_answer, points)')
@@ -84,6 +87,7 @@ serve(async (req: Request) => {
     const { data: evaluation, error: evalError } = await supabase
       .from('evaluation_results')
       .upsert({
+        organization_id: sessionContext.organization_id,
         session_id,
         overall_score: percentageScore,
         total_possible: totalPossible,
@@ -100,11 +104,7 @@ serve(async (req: Request) => {
     if (evalError) throw evalError;
 
     // 2. Cross-table status synchronization
-    const { data: session } = await supabase
-      .from('assessment_sessions')
-      .select('candidate_id, assessment_id')
-      .eq('id', session_id)
-      .single();
+    const session = sessionContext;
 
     if (session) {
       const isPassed = percentageScore >= 70;

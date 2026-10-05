@@ -22,7 +22,7 @@ serve(async (req: Request) => {
     // Find session by raw token
     const { data: session, error: sessionError } = await supabase
       .from('assessment_sessions')
-      .select('*')
+      .select('id, assessment_id, organization_id, status, token_expires_at, expires_at')
       .eq('token', token)
       .maybeSingle();
 
@@ -71,6 +71,7 @@ serve(async (req: Request) => {
       const { data, error } = await supabase
         .from('candidate_responses')
         .insert({
+          organization_id: session.organization_id,
           session_id: session.id,
           question_id: question_id,
           answer_text: response_text || selected_option?.value || selected_option || null
@@ -101,7 +102,7 @@ serve(async (req: Request) => {
       } else {
         const { data, error } = await supabase
           .from('responses')
-          .insert({ session_id: session.id, question_id, response_text: response_text || null, selected_option: selected_option || null })
+        .insert({ organization_id: session.organization_id, session_id: session.id, question_id, response_text: response_text || null, selected_option: selected_option || null })
           .select()
           .single();
         result = { data, error };
