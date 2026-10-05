@@ -1,6 +1,54 @@
 -- Tenant + security foundation.  This migration only adds columns, rows and policies;
 -- it deliberately keeps all existing business data in a legacy/default organization.
 
+-- The linked Supabase project predates the repository's identity migrations. Keep this
+-- foundation self-contained so it can be applied to that existing schema without
+-- replaying unrelated historical migrations (one of which truncates candidates).
+do $$ begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'app_role'
+  ) then
+    create type public.app_role as enum ('admin', 'hr', 'team_lead');
+  end if;
+end $$;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  full_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.user_roles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  role public.app_role not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, role)
+);
+
+-- Restore identity rows for existing Supabase Auth users before assigning them to the
+-- legacy tenant below. New users are handled by the replacement trigger in this file.
+insert into public.profiles (id, email, full_name)
+select u.id, u.email, coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', u.email)
+from auth.users u
+on conflict (id) do nothing;
+
+alter table public.profiles enable row level security;
+alter table public.user_roles enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Users can view their own profile') then
+    create policy "Users can view their own profile" on public.profiles for select to authenticated using (auth.uid() = id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Users can update their own profile') then
+    create policy "Users can update their own profile" on public.profiles for update to authenticated using (auth.uid() = id);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='user_roles' and policyname='Users can view their own roles') then
+    create policy "Users can view their own roles" on public.user_roles for select to authenticated using (auth.uid() = user_id);
+  end if;
+end $$;
+
 create table if not exists public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -58,6 +106,10 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
 
 create or replace function public.current_organization_id()
 returns uuid language sql stable security definer set search_path = public as $$

@@ -24,6 +24,7 @@ const App = () => (
         <Routes>
           <Route path="/assessment/*" element={<AssessmentPortalRouter />} />
           <Route path="/careers" element={<CareersPage />} />
+          <Route path="/careers/:siteSlug" element={<CareersPage />} />
           <Route path="/bgv-upload/:token" element={<CandidateBGVUpload />} />
           <Route path="/bgv-verify/:token" element={<ReferenceVerification />} />
           <Route path="/auth" element={<Auth />} />

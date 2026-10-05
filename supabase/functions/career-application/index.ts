@@ -47,6 +47,16 @@ serve(async (req) => {
     if (!site?.organization_id)
       return json({ error: "Unknown careers site" }, 404);
     const organizationId = site.organization_id;
+    if (body.action === "list_jobs") {
+      const { data: jobs, error } = await supabase
+        .from("jobs")
+        .select("id,title,slug,department,location,employment_type,description,openings")
+        .eq("organization_id", organizationId)
+        .eq("status", "published")
+        .order("created_at", { ascending: false });
+      if (error) return json({ error: "Could not load open positions" }, 500);
+      return json({ jobs: jobs ?? [] });
+    }
     if (body.action === "create_upload") {
       if (!body.fileName || !body.contentType || !body.fileSize)
         return json({ error: "File metadata is required" }, 400);
@@ -70,7 +80,7 @@ serve(async (req) => {
     }
 
     if (body.action !== "submit") return json({ error: "Unknown action" }, 400);
-    const { name, email, phone, position, resumePath } = body;
+    const { name, email, phone, position, jobId, resumePath } = body;
     if (
       ![name, email, position, resumePath].every(
         (value) => typeof value === "string" && value.trim(),
@@ -82,6 +92,18 @@ serve(async (req) => {
       );
     if (!resumePath.startsWith(`${organizationId}/applications/`))
       return json({ error: "Invalid resume upload" }, 400);
+    let job: { id: string; title: string } | null = null;
+    if (jobId) {
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("id,title")
+        .eq("id", jobId)
+        .eq("organization_id", organizationId)
+        .eq("status", "published")
+        .maybeSingle();
+      if (error || !data) return json({ error: "This position is no longer open" }, 400);
+      job = data;
+    }
     const { data: object, error: objectError } = await supabase.storage
       .from("resumes")
       .list(resumePath.split("/").slice(0, -1).join("/"), {
@@ -113,7 +135,8 @@ serve(async (req) => {
         name: name.trim(),
         email: normalizedEmail,
         phone: phone?.trim() || null,
-        applied_role: position.trim(),
+        applied_role: job?.title ?? position.trim(),
+        job_id: job?.id ?? null,
         resume_url: resumePath,
         resume_text: null,
         status: "uploaded",

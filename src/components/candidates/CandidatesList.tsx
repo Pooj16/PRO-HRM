@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,11 +28,25 @@ const CandidatesList = () => {
   } = useRealtimeData();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [jobFilter, setJobFilter] = useState('all');
+  const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [resumeViewer, setResumeViewer] = useState<{ open: boolean, url: string, name: string }>({
     open: false, url: '', name: ''
   });
   const { toast } = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from('jobs').select('id,title').order('title').then(({ data, error }) => {
+      if (error) {
+        console.error('Could not load jobs for application filtering:', error);
+        return;
+      }
+      if (!cancelled) setJobs(data ?? []);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Debug logging
   React.useEffect(() => {
@@ -52,7 +66,10 @@ const CandidatesList = () => {
 
     const matchesStatus = statusFilter === 'all' || candidate.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const matchesJob = jobFilter === 'all' ||
+      (jobFilter === 'unlinked' ? !candidate.job_id : candidate.job_id === jobFilter);
+
+    return matchesSearch && matchesStatus && matchesJob;
   });
 
   // Removed local fetching - using useRealtimeData for everything now
@@ -189,9 +206,9 @@ const CandidatesList = () => {
     <div className="space-y-6">
       <Card className="shadow-sm border-border/60">
         <CardHeader>
-          <CardTitle className="text-lg">Your Candidate Pipeline</CardTitle>
-          <CardDescription>
-            Everyone who's applied, all in one place. Click a row to dig in.
+            <CardTitle className="text-lg">Applications</CardTitle>
+            <CardDescription>
+            Review applications across your open and past roles. Existing pipeline actions remain available here.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -220,6 +237,14 @@ const CandidatesList = () => {
                 <SelectItem value="rejected">Rejected</SelectItem>
                 <SelectItem value="interviewed">Interviewed</SelectItem>
                 <SelectItem value="hired">Hired</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={jobFilter} onValueChange={setJobFilter}>
+              <SelectTrigger className="w-56"><SelectValue placeholder="Filter by job" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Jobs</SelectItem>
+                <SelectItem value="unlinked">Legacy / Unlinked</SelectItem>
+                {jobs.map((job) => <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>)}
               </SelectContent>
             </Select>
             <ManualTextExtraction
@@ -256,7 +281,7 @@ const CandidatesList = () => {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{candidate.applied_role || 'N/A'}</div>
+                        <div className="font-medium">{jobs.find((job) => job.id === candidate.job_id)?.title || candidate.applied_role || 'N/A'}</div>
                         <div className="text-sm text-muted-foreground">{candidate.location}</div>
                       </div>
                     </TableCell>

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, CheckCircle } from 'lucide-react';
 
-export const CareersForm = () => {
+export const CareersForm = ({ siteSlug = 'careers' }: { siteSlug?: string }) => {
+  const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
@@ -16,6 +17,14 @@ export const CareersForm = () => {
   });
   const [resume, setResume] = useState<File | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    supabase.functions.invoke('career-application', { body: { action: 'list_jobs', siteSlug } })
+      .then(({ data, error }) => {
+        if (error) console.error('Could not load open positions:', error);
+        else setJobs(data?.jobs ?? []);
+      });
+  }, [siteSlug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +51,7 @@ export const CareersForm = () => {
           }
 
           const { data: uploadRequest, error: uploadRequestError } = await supabase.functions.invoke('career-application', {
-            body: { action: 'create_upload', fileName: resume.name, contentType: resume.type, fileSize: resume.size }
+            body: { action: 'create_upload', siteSlug, fileName: resume.name, contentType: resume.type, fileSize: resume.size }
           });
           if (uploadRequestError || !uploadRequest?.path || !uploadRequest?.token) {
             throw new Error(uploadRequest?.error || uploadRequestError?.message || 'Could not prepare secure resume upload');
@@ -93,7 +102,7 @@ export const CareersForm = () => {
       }
 
       const { data: application, error: submitError } = await supabase.functions.invoke('career-application', {
-        body: { action: 'submit', ...formData, resumePath: resume_url }
+        body: { action: 'submit', siteSlug, ...formData, jobId: formData.position, position: jobs.find((job) => job.id === formData.position)?.title || formData.position, resumePath: resume_url }
       });
       if (submitError || !application?.candidateId) throw new Error(application?.error || submitError?.message || 'Could not submit application');
 
@@ -215,17 +224,8 @@ export const CareersForm = () => {
           onChange={(e) => setFormData({ ...formData, position: e.target.value })}
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
         >
-          <option value="">-- Select a Position --</option>
-          <option value="Frontend Engineer">Frontend Engineer</option>
-          <option value="Backend Engineer">Backend Engineer</option>
-          <option value="Full Stack Engineer">Full Stack Engineer</option>
-          <option value="Product Manager">Product Manager</option>
-          <option value="UX Designer">UX Designer</option>
-          <option value="Data Scientist">Data Scientist</option>
-          <option value="DevOps Engineer">DevOps Engineer</option>
-          <option value="QA Engineer">QA Engineer</option>
-          <option value="HR Manager">HR Manager</option>
-          <option value="Sales Representative">Sales Representative</option>
+          <option value="">-- Select an Open Position --</option>
+          {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
         </select>
       </div>
 

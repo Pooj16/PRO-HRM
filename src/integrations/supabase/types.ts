@@ -254,6 +254,7 @@ export type Database = {
           email: string
           experience: string | null
           id: string
+          job_id: string | null
           last_employer_details: string | null
           last_status_change_at: string | null
           last_status_changed_by: string | null
@@ -288,6 +289,7 @@ export type Database = {
           email: string
           experience?: string | null
           id?: string
+          job_id?: string | null
           last_employer_details?: string | null
           last_status_change_at?: string | null
           last_status_changed_by?: string | null
@@ -322,6 +324,7 @@ export type Database = {
           email?: string
           experience?: string | null
           id?: string
+          job_id?: string | null
           last_employer_details?: string | null
           last_status_change_at?: string | null
           last_status_changed_by?: string | null
@@ -350,6 +353,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      jobs: {
+        Row: {
+          created_at: string
+          department: string | null
+          description: string | null
+          employment_type: string | null
+          id: string
+          location: string | null
+          openings: number
+          organization_id: string
+          slug: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          employment_type?: string | null
+          id?: string
+          location?: string | null
+          openings?: number
+          organization_id?: string
+          slug: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          employment_type?: string | null
+          id?: string
+          location?: string | null
+          openings?: number
+          organization_id?: string
+          slug?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       bgv_verification_contacts: {
         Row: {
